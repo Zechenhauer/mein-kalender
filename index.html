@@ -424,7 +424,9 @@
     <!-- Kategorien Filterleiste & Heute Button -->
     <div class="filter-bar">
       <div class="category-chips">
-        <div class="chip active" onclick="filterByCategory('Alle', this)">Alle</div>
+        <div class="chip active" onclick="filterByCategory('Alle', this)">
+          <span class="dot" style="background: linear-gradient(135deg, #3b82f6, #d4af37, #ec4899, #10b981);"></span>Alle
+        </div>
         <div class="chip" onclick="filterByCategory('Privat', this)"><span class="dot" style="background:#3b82f6;"></span>Privat</div>
         <div class="chip" onclick="filterByCategory('TV Kapellen', this)"><span class="dot" style="background:#d4af37;"></span>TV Kapellen</div>
         <div class="chip" onclick="filterByCategory('Geburtstage', this)"><span class="dot" style="background:#ec4899;"></span>Geburtstage</div>
@@ -452,7 +454,7 @@
       </div>
       <div class="form-group">
         <label>Kategorie</label>
-        <select id="eventCategorySelect">
+        <select id="eventCategorySelect" onchange="onCategoryChange()">
           <option value="Privat">Privat</option>
           <option value="TV Kapellen">TV Kapellen</option>
           <option value="Geburtstage">Geburtstage</option>
@@ -536,21 +538,25 @@
       if (error) {
         console.error('Fehler beim Laden aus Supabase:', error.message);
       } else {
-        allEventsData = dbEvents.map(ev => ({
-          id: ev.id,
-          title: ev.title,
-          start: ev.start,
-          end: ev.end,
-          allDay: ev.all_day || false,
-          backgroundColor: ev.background_color,
-          borderColor: ev.border_color,
-          extendedProps: { category: ev.category }
-        }));
+        allEventsData = dbEvents.map(ev => {
+          let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
+          let col = categoryColors[cat];
+          return {
+            id: ev.id,
+            title: ev.title,
+            start: ev.start,
+            end: ev.end,
+            allDay: ev.all_day !== undefined ? ev.all_day : true,
+            backgroundColor: col,
+            borderColor: col,
+            extendedProps: { category: cat }
+          };
+        });
       }
 
       calendar = new FullCalendar.Calendar(calendarEl('calendar'), {
         initialView: 'dayGridMonth',
-        firstDay: 1, // Woche beginnt am Montag (1)
+        firstDay: 1, // Woche beginnt am Montag
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
@@ -650,8 +656,24 @@
         startInput.value = currentStartDate;
         endInput.value = currentEndDate;
       } else {
-        startInput.value = currentStartDate + 'T09:00';
-        endInput.value = currentEndDate + 'T10:00';
+        startInput.value = currentStartDate + 'T07:00';
+        endInput.value = currentEndDate + 'T13:00';
+      }
+    }
+
+    // Automatische Zeitsetzung bei Auswahl von "Eisen Krämer"
+    function onCategoryChange() {
+      const category = document.getElementById('eventCategorySelect').value;
+      const isAllDay = document.getElementById('allDayCheckbox').checked;
+
+      if (category === 'Eisen Krämer' && !isAllDay) {
+        const startInput = document.getElementById('eventStartInput');
+        const endInput = document.getElementById('eventEndInput');
+        
+        let currentDate = startInput.value ? startInput.value.substring(0, 10) : new Date().toISOString().substring(0, 10);
+        
+        startInput.value = currentDate + 'T07:00';
+        endInput.value = currentDate + 'T13:00';
       }
     }
 
@@ -660,7 +682,9 @@
       document.getElementById('modalTitle').innerText = 'Termin hinzufügen';
       document.getElementById('eventId').value = '';
       document.getElementById('eventTitleInput').value = '';
-      document.getElementById('eventCategorySelect').value = activeCategoryFilter === 'Alle' ? 'Privat' : activeCategoryFilter;
+      
+      const defaultCategory = activeCategoryFilter === 'Alle' ? 'Privat' : activeCategoryFilter;
+      document.getElementById('eventCategorySelect').value = defaultCategory;
       document.getElementById('deleteBtn').style.display = 'none';
 
       document.getElementById('allDayCheckbox').checked = isAllDay;
@@ -676,8 +700,14 @@
         startInput.value = start ? start.substring(0, 10) : now.toISOString().substring(0, 10);
         endInput.value = end ? end.substring(0, 10) : now.toISOString().substring(0, 10);
       } else {
-        startInput.value = start ? start.substring(0, 16) : formatLocalDateTime(now);
-        endInput.value = end ? end.substring(0, 16) : formatLocalDateTime(new Date(now.getTime() + 60*60*1000));
+        if (defaultCategory === 'Eisen Krämer') {
+          let dateStr = start ? start.substring(0, 10) : now.toISOString().substring(0, 10);
+          startInput.value = dateStr + 'T07:00';
+          endInput.value = dateStr + 'T13:00';
+        } else {
+          startInput.value = start ? start.substring(0, 16) : formatLocalDateTime(now);
+          endInput.value = end ? end.substring(0, 16) : formatLocalDateTime(new Date(now.getTime() + 60*60*1000));
+        }
       }
 
       document.getElementById('eventModal').style.display = 'flex';
