@@ -478,7 +478,7 @@
       </div>
       <div class="form-group">
         <label class="checkbox-group">
-          <!-- Haken standardmäßig IMMER weg (false) -->
+          <!-- Haken standardmäßig IMMER weg beim Erstellen/Öffnen -->
           <input type="checkbox" id="allDayCheckbox" onchange="toggleAllDay()"> Ganztägiger Termin
         </label>
       </div>
@@ -546,11 +546,13 @@
     let allEventsData = [];
     let activeCategoryFilter = 'Alle';
 
-    // Gibt NUR den reinen Titel zurück. FullCalendar kümmert sich um die Zeitanzeige im Monat/Woche, ohne Doppel-Uhrzeit!
-    function formatEventTitle(title, start, allDay) {
-      // Wenn der Titel bereits eine Uhrzeit enthält (z.B. vom iCal-Import), bereinigen wir sie einmal sauber
-      let cleanTitle = title.replace(/^\d{1,2}:\d{2}\s*-\s*/, '').replace(/^\d{1,2}\s*Uhr\s*\d{1,2}:\d{2}\s*-\s*/, '');
-      return cleanTitle;
+    // Bereinigt den Titel von jeglichen alten harten Zeitstempeln
+    function cleanEventTitle(title) {
+      if (!title) return '';
+      return title
+        .replace(/^\d{1,2}:\d{2}\s*-\s*/, '')
+        .replace(/^\d{1,2}\s*Uhr\s*\d{1,2}:\d{2}\s*-\s*/, '')
+        .trim();
     }
 
     document.addEventListener('DOMContentLoaded', async function() {
@@ -563,14 +565,14 @@
       } else {
         allEventsData = dbEvents.map(ev => {
           let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
-          let col = categoryColors[cat];
+          // Nutze die in DB gespeicherte Farbe, falls vorhanden, sonst Fallback auf Kategorie-Farbe
+          let col = ev.background_color || categoryColors[cat] || '#3b82f6';
           let isAllDay = ev.all_day !== undefined ? ev.all_day : false;
-          
-          let displayTitle = formatEventTitle(ev.title, ev.start, isAllDay);
+          let rawCleanTitle = cleanEventTitle(ev.title);
 
           let eventObj = {
             id: ev.id,
-            title: displayTitle,
+            title: rawCleanTitle,
             start: ev.start,
             end: ev.end,
             allDay: isAllDay,
@@ -579,7 +581,7 @@
             textColor: '#ffffff',
             extendedProps: { 
               category: cat,
-              rawTitle: displayTitle,
+              rawTitle: rawCleanTitle,
               isAllDayReal: isAllDay
             }
           };
@@ -761,7 +763,7 @@
       document.getElementById('eventRecurrenceSelect').value = recVal;
       document.getElementById('deleteBtn').style.display = 'inline-block';
 
-      // Haken beim Bearbeiten IMMER standardmäßig AUS (du entscheidest bewusst)
+      // Haken beim Bearbeiten IMMER standardmäßig AUS
       document.getElementById('allDayCheckbox').checked = false;
 
       const startInput = document.getElementById('eventStartInput');
@@ -793,7 +795,7 @@
     }
 
     async function saveEvent() {
-      const rawTitle = document.getElementById('eventTitleInput').value;
+      const rawTitle = cleanEventTitle(document.getElementById('eventTitleInput').value);
       const category = document.getElementById('eventCategorySelect').value;
       const recurrence = document.getElementById('eventRecurrenceSelect').value;
       const isAllDay = document.getElementById('allDayCheckbox').checked;
@@ -820,10 +822,8 @@
       else if (recurrence === 'monthly') rruleStr = 'FREQ=MONTHLY';
       else if (recurrence === 'yearly') rruleStr = 'FREQ=YEARLY';
 
-      let displayTitle = formatEventTitle(rawTitle, start, isAllDay);
-
       if (currentEditingEvent) {
-        currentEditingEvent.setProp('title', displayTitle);
+        currentEditingEvent.setProp('title', rawTitle);
         currentEditingEvent.setStart(start);
         currentEditingEvent.setEnd(end);
         currentEditingEvent.setAllDay(isAllDay);
@@ -837,7 +837,7 @@
         if (idx !== -1) {
           allEventsData[idx] = {
             id: currentEditingEvent.id,
-            title: displayTitle,
+            title: rawTitle,
             start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
             textColor: '#ffffff',
@@ -846,7 +846,7 @@
           };
         }
 
-        await updateEventInSupabase(currentEditingEvent, rawTitle, rruleStr, isAllDay);
+        await updateEventInSupabase(currentEditingEvent, rawTitle, rruleStr, isAllDay, color);
       } else {
         const newId = '_' + Math.random().toString(36).substr(2, 9);
         const newEventData = {
@@ -863,7 +863,7 @@
 
         allEventsData.push({
           id: newId,
-          title: displayTitle,
+          title: rawTitle,
           start: start,
           end: end,
           allDay: isAllDay,
@@ -877,7 +877,7 @@
         if (activeCategoryFilter === 'Alle' || activeCategoryFilter === category) {
           let evPayload = {
             id: newId,
-            title: displayTitle,
+            title: rawTitle,
             start: start,
             end: end,
             allDay: isAllDay,
@@ -898,9 +898,8 @@
       closeModal();
     }
 
-    async function updateEventInSupabase(event, rawTitle, rruleStr, isAllDay) {
+    async function updateEventInSupabase(event, rawTitle, rruleStr, isAllDay, color) {
       const category = event.extendedProps.category || 'Privat';
-      const color = categoryColors[category] || '#3b82f6';
       
       await supabaseClient.from('calendar_events').update({
         title: rawTitle,
@@ -946,6 +945,7 @@
       let currentEvent = null;
 
       const cutoffDate = new Date('2026-11-01T00:00:00');
+      const color = categoryColors[selectedCategory] || '#3b82f6';
 
       for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
@@ -966,8 +966,7 @@
                 currentEvent.end = currentEvent.start;
               }
 
-              const color = categoryColors[selectedCategory] || '#3b82f6';
-              let cleanTitle = formatEventTitle(currentEvent.title, currentEvent.start, currentEvent.allDay);
+              let cleanTitle = cleanEventTitle(currentEvent.title);
 
               const newId = '_' + Math.random().toString(36).substr(2, 9);
               const eventObj = {
