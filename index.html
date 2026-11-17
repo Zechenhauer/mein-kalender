@@ -545,6 +545,19 @@
     let allEventsData = [];
     let activeCategoryFilter = 'Alle';
 
+    // Hilfsfunktion: Formatierte Anzeige des Titels mit Uhrzeit (falls nicht ganztägig)
+    function formatEventTitle(title, start, allDay) {
+      if (allDay || !start || !start.includes('T')) {
+        return title;
+      }
+      let timePart = start.split('T')[1].substring(0, 5); // z.B. "14:00"
+      // Falls im Titel schon eine Uhrzeit steht, nicht doppelt hinzufügen
+      if (title.includes(timePart) || title.match(/^\d{2}:\d{2}/)) {
+        return title;
+      }
+      return `${timePart} - ${title}`;
+    }
+
     document.addEventListener('DOMContentLoaded', async function() {
       var calendarEl = id => document.getElementById(id);
 
@@ -556,16 +569,22 @@
         allEventsData = dbEvents.map(ev => {
           let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
           let col = categoryColors[cat];
+          let isAllDay = ev.all_day !== undefined ? ev.all_day : true;
           
+          let displayTitle = formatEventTitle(ev.title, ev.start, isAllDay);
+
           let eventObj = {
             id: ev.id,
-            title: ev.title,
+            title: displayTitle,
             start: ev.start,
             end: ev.end,
-            allDay: ev.all_day !== undefined ? ev.all_day : true,
+            allDay: true, // Balken-Optik beibehalten
             backgroundColor: col,
             borderColor: col,
-            extendedProps: { category: cat }
+            extendedProps: { 
+              category: cat,
+              rawTitle: ev.title // Originalen Titel für den Bearbeiten-Dialog speichern
+            }
           };
 
           if (ev.rrule) {
@@ -738,7 +757,8 @@
       currentEditingEvent = event;
       document.getElementById('modalTitle').innerText = 'Termin bearbeiten';
       document.getElementById('eventId').value = event.id;
-      document.getElementById('eventTitleInput').value = event.title;
+      // Den ursprünglichen Titel ohne prefix anzeigen
+      document.getElementById('eventTitleInput').value = event.extendedProps.rawTitle || event.title;
       document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Silke';
       
       let recVal = 'none';
@@ -781,14 +801,14 @@
     }
 
     async function saveEvent() {
-      const title = document.getElementById('eventTitleInput').value;
+      const rawTitle = document.getElementById('eventTitleInput').value;
       const category = document.getElementById('eventCategorySelect').value;
       const recurrence = document.getElementById('eventRecurrenceSelect').value;
       const isAllDay = document.getElementById('allDayCheckbox').checked;
       let start = document.getElementById('eventStartInput').value;
       let end = document.getElementById('eventEndInput').value;
 
-      if (!title) {
+      if (!rawTitle) {
         alert('Bitte gib einen Titel ein.');
         return;
       }
@@ -808,31 +828,36 @@
       else if (recurrence === 'monthly') rruleStr = 'FREQ=MONTHLY';
       else if (recurrence === 'yearly') rruleStr = 'FREQ=YEARLY';
 
+      let displayTitle = formatEventTitle(rawTitle, start, isAllDay);
+
       if (currentEditingEvent) {
-        currentEditingEvent.setProp('title', title);
+        currentEditingEvent.setProp('title', displayTitle);
         currentEditingEvent.setStart(start);
         currentEditingEvent.setEnd(end);
-        currentEditingEvent.setAllDay(isAllDay);
+        currentEditingEvent.setAllDay(true);
         currentEditingEvent.setProp('backgroundColor', color);
         currentEditingEvent.setProp('borderColor', color);
         currentEditingEvent.setExtendedProp('category', category);
+        currentEditingEvent.setExtendedProp('rawTitle', rawTitle);
 
         const idx = allEventsData.findIndex(e => e.id === currentEditingEvent.id);
         if (idx !== -1) {
           allEventsData[idx] = {
             id: currentEditingEvent.id,
-            title, start, end, allDay: isAllDay,
+            title: displayTitle,
+            start, end, allDay: true,
             backgroundColor: color, borderColor: color,
-            extendedProps: { category },
+            extendedProps: { category, rawTitle },
             rrule: rruleStr
           };
         }
 
-        await updateEventInSupabase(currentEditingEvent, rruleStr);
+        await updateEventInSupabase(currentEditingEvent, rawTitle, rruleStr);
       } else {
+        const newId = '_' + Math.random().toString(36).substr(2, 9);
         const newEventData = {
-          id: '_' + Math.random().toString(36).substr(2, 9),
-          title: title,
+          id: newId,
+          title: rawTitle,
           start: start,
           end: end,
           all_day: isAllDay,
@@ -843,27 +868,27 @@
         };
 
         allEventsData.push({
-          id: newEventData.id,
-          title: newEventData.title,
-          start: newEventData.start,
-          end: newEventData.end,
-          allDay: newEventData.all_day,
-          backgroundColor: newEventData.background_color,
-          borderColor: newEventData.border_color,
-          extendedProps: { category: newEventData.category },
+          id: newId,
+          title: displayTitle,
+          start: start,
+          end: end,
+          allDay: true,
+          backgroundColor: color,
+          borderColor: color,
+          extendedProps: { category, rawTitle },
           rrule: rruleStr
         });
 
         if (activeCategoryFilter === 'Alle' || activeCategoryFilter === category) {
           let evPayload = {
-            id: newEventData.id,
-            title: newEventData.title,
-            start: newEventData.start,
-            end: newEventData.end,
-            allDay: newEventData.all_day,
-            backgroundColor: newEventData.background_color,
-            borderColor: newEventData.border_color,
-            extendedProps: { category: newEventData.category }
+            id: newId,
+            title: displayTitle,
+            start: start,
+            end: end,
+            allDay: true,
+            backgroundColor: color,
+            borderColor: color,
+            extendedProps: { category, rawTitle }
           };
           if (rruleStr) evPayload.rrule = rruleStr;
 
@@ -877,12 +902,12 @@
       closeModal();
     }
 
-    async function updateEventInSupabase(event, rruleStr) {
+    async function updateEventInSupabase(event, rawTitle, rruleStr) {
       const category = event.extendedProps.category || 'Privat';
       const color = categoryColors[category] || '#3b82f6';
       
       await supabaseClient.from('calendar_events').update({
-        title: event.title,
+        title: rawTitle,
         start: event.startStr,
         end: event.endStr || event.startStr,
         all_day: event.allDay,
@@ -948,8 +973,11 @@
               }
 
               const color = categoryColors[selectedCategory] || '#3b82f6';
+              let displayTitle = formatEventTitle(currentEvent.title, currentEvent.start, currentEvent.allDay);
+
+              const newId = '_' + Math.random().toString(36).substr(2, 9);
               const eventObj = {
-                id: '_' + Math.random().toString(36).substr(2, 9),
+                id: newId,
                 title: currentEvent.title,
                 start: currentEvent.start,
                 end: currentEvent.end,
@@ -962,26 +990,26 @@
               importedEvents.push(eventObj);
 
               allEventsData.push({
-                id: eventObj.id,
-                title: eventObj.title,
-                start: eventObj.start,
-                end: eventObj.end,
-                allDay: eventObj.all_day,
-                backgroundColor: eventObj.background_color,
-                borderColor: eventObj.border_color,
-                extendedProps: { category: eventObj.category }
+                id: newId,
+                title: displayTitle,
+                start: currentEvent.start,
+                end: currentEvent.end,
+                allDay: true,
+                backgroundColor: color,
+                borderColor: color,
+                extendedProps: { category: selectedCategory, rawTitle: currentEvent.title }
               });
 
               if (activeCategoryFilter === 'Alle' || activeCategoryFilter === selectedCategory) {
                 calendar.addEvent({
-                  id: eventObj.id,
-                  title: eventObj.title,
-                  start: eventObj.start,
-                  end: eventObj.end,
-                  allDay: eventObj.all_day,
-                  backgroundColor: eventObj.background_color,
-                  borderColor: eventObj.border_color,
-                  extendedProps: { category: eventObj.category }
+                  id: newId,
+                  title: displayTitle,
+                  start: currentEvent.start,
+                  end: currentEvent.end,
+                  allDay: true,
+                  backgroundColor: color,
+                  borderColor: color,
+                  extendedProps: { category: selectedCategory, rawTitle: currentEvent.title }
                 });
               }
             }
