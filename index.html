@@ -273,8 +273,6 @@
       padding: 4px 8px !important;
       border-radius: 6px !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      /* Erzwingt, dass die Event-Hintergrundfarbe aus den inline-Styles korrekt greift */
-      background-color: var(--fc-event-bg-color) !important;
     }
 
     /* Modal / Popup Design */
@@ -548,7 +546,6 @@
     let allEventsData = [];
     let activeCategoryFilter = 'Alle';
 
-    // Bereinigt den Titel von jeglichen alten harten Zeitstempeln
     function cleanEventTitle(title) {
       if (!title) return '';
       return title
@@ -580,8 +577,6 @@
             backgroundColor: col,
             borderColor: col,
             textColor: '#ffffff',
-            // Damit das CSS die Farbe zuverlässig zieht:
-            classNames: ['cat-event'],
             extendedProps: { 
               category: cat,
               rawTitle: rawCleanTitle,
@@ -608,6 +603,20 @@
         editable: true,
         selectable: true,
         events: allEventsData,
+        // Zwingt FullCalendar bei jedem gerenderten Event, die Hintergrundfarbe hart zu setzen
+        eventDidMount: function(info) {
+          const cat = info.event.extendedProps.category;
+          const bgCol = info.event.backgroundColor || categoryColors[cat] || '#3b82f6';
+          info.el.style.backgroundColor = bgCol;
+          info.el.style.borderColor = bgCol;
+          info.el.style.color = '#ffffff';
+          // Falls Text-Inhalte (wie Dots bei timeds-Events) vorhanden sind, färben wir sie direkt mit ein
+          const mainEl = info.event.allDay ? info.el : info.el.querySelector('.fc-event-main');
+          if(mainEl) {
+            mainEl.style.backgroundColor = bgCol;
+            mainEl.style.color = '#ffffff';
+          }
+        },
         select: function(info) {
           openNewEventModal(info.startStr, info.endStr, false);
         },
@@ -726,7 +735,6 @@
       document.getElementById('eventCategorySelect').value = defaultCategory;
       document.getElementById('deleteBtn').style.display = 'none';
 
-      // Haken IMMER standardmäßig AUS beim Erstellen
       document.getElementById('allDayCheckbox').checked = false;
       
       const startInput = document.getElementById('eventStartInput');
@@ -766,7 +774,6 @@
       document.getElementById('eventRecurrenceSelect').value = recVal;
       document.getElementById('deleteBtn').style.display = 'inline-block';
 
-      // Haken beim Bearbeiten IMMER standardmäßig AUS
       document.getElementById('allDayCheckbox').checked = false;
 
       const startInput = document.getElementById('eventStartInput');
@@ -844,7 +851,6 @@
             start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
             textColor: '#ffffff',
-            classNames: ['cat-event'],
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
             rrule: rruleStr
           };
@@ -874,7 +880,6 @@
           backgroundColor: color,
           borderColor: color,
           textColor: '#ffffff',
-          classNames: ['cat-event'],
           extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
           rrule: rruleStr
         });
@@ -889,7 +894,6 @@
             backgroundColor: color,
             borderColor: color,
             textColor: '#ffffff',
-            classNames: ['cat-event'],
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay }
           };
           if (rruleStr) evPayload.rrule = rruleStr;
@@ -900,6 +904,7 @@
         await supabaseClient.from('calendar_events').insert([newEventData]);
       }
 
+      calendar.refetchEvents();
       highlightDaysWithEvents();
       closeModal();
     }
@@ -997,7 +1002,6 @@
                 backgroundColor: color,
                 borderColor: color,
                 textColor: '#ffffff',
-                classNames: ['cat-event'],
                 extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
               });
 
@@ -1011,7 +1015,6 @@
                   backgroundColor: color,
                   borderColor: color,
                   textColor: '#ffffff',
-                  classNames: ['cat-event'],
                   extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
                 });
               }
