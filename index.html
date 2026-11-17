@@ -478,6 +478,7 @@
       </div>
       <div class="form-group">
         <label class="checkbox-group">
+          <!-- Haken standardmäßig IMMER weg (false) -->
           <input type="checkbox" id="allDayCheckbox" onchange="toggleAllDay()"> Ganztägiger Termin
         </label>
       </div>
@@ -545,16 +546,11 @@
     let allEventsData = [];
     let activeCategoryFilter = 'Alle';
 
-    // Zeigt nur die Anfangszeit an (z.B. "10:30 - Titel")
+    // Gibt NUR den reinen Titel zurück. FullCalendar kümmert sich um die Zeitanzeige im Monat/Woche, ohne Doppel-Uhrzeit!
     function formatEventTitle(title, start, allDay) {
-      if (allDay || !start || !start.includes('T')) {
-        return title;
-      }
-      let timePart = start.split('T')[1].substring(0, 5); // z.B. "10:30"
-      if (title.includes(timePart) || title.match(/^\d{2}:\d{2}/)) {
-        return title;
-      }
-      return `${timePart} - ${title}`;
+      // Wenn der Titel bereits eine Uhrzeit enthält (z.B. vom iCal-Import), bereinigen wir sie einmal sauber
+      let cleanTitle = title.replace(/^\d{1,2}:\d{2}\s*-\s*/, '').replace(/^\d{1,2}\s*Uhr\s*\d{1,2}:\d{2}\s*-\s*/, '');
+      return cleanTitle;
     }
 
     document.addEventListener('DOMContentLoaded', async function() {
@@ -583,7 +579,7 @@
             textColor: '#ffffff',
             extendedProps: { 
               category: cat,
-              rawTitle: ev.title,
+              rawTitle: displayTitle,
               isAllDayReal: isAllDay
             }
           };
@@ -771,11 +767,18 @@
       const startInput = document.getElementById('eventStartInput');
       const endInput = document.getElementById('eventEndInput');
       
-      startInput.type = 'datetime-local';
-      endInput.type = 'datetime-local';
+      let isAllDay = event.allDay;
+      startInput.type = isAllDay ? 'date' : 'datetime-local';
+      endInput.type = isAllDay ? 'date' : 'datetime-local';
 
-      startInput.value = event.start ? event.start.toISOString().substring(0, 16) : '';
-      endInput.value = event.end ? event.end.toISOString().substring(0, 16) : (event.start ? event.start.toISOString().substring(0, 16) : '');
+      if (isAllDay) {
+        startInput.value = event.startStr ? event.startStr.substring(0, 10) : '';
+        let endDate = event.end ? new Date(event.end.getTime() - 86400000) : new Date(event.start);
+        endInput.value = endDate.toISOString().substring(0, 10);
+      } else {
+        startInput.value = event.start ? event.start.toISOString().substring(0, 16) : '';
+        endInput.value = event.end ? event.end.toISOString().substring(0, 16) : (event.start ? event.start.toISOString().substring(0, 16) : '');
+      }
 
       document.getElementById('eventModal').style.display = 'flex';
     }
@@ -837,6 +840,7 @@
             title: displayTitle,
             start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
+            textColor: '#ffffff',
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
             rrule: rruleStr
           };
@@ -865,6 +869,7 @@
           allDay: isAllDay,
           backgroundColor: color,
           borderColor: color,
+          textColor: '#ffffff',
           extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
           rrule: rruleStr
         });
@@ -878,6 +883,7 @@
             allDay: isAllDay,
             backgroundColor: color,
             borderColor: color,
+            textColor: '#ffffff',
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay }
           };
           if (rruleStr) evPayload.rrule = rruleStr;
@@ -961,12 +967,12 @@
               }
 
               const color = categoryColors[selectedCategory] || '#3b82f6';
-              let displayTitle = formatEventTitle(currentEvent.title, currentEvent.start, currentEvent.allDay);
+              let cleanTitle = formatEventTitle(currentEvent.title, currentEvent.start, currentEvent.allDay);
 
               const newId = '_' + Math.random().toString(36).substr(2, 9);
               const eventObj = {
                 id: newId,
-                title: currentEvent.title,
+                title: cleanTitle,
                 start: currentEvent.start,
                 end: currentEvent.end,
                 all_day: currentEvent.allDay,
@@ -979,25 +985,27 @@
 
               allEventsData.push({
                 id: newId,
-                title: displayTitle,
+                title: cleanTitle,
                 start: currentEvent.start,
                 end: currentEvent.end,
                 allDay: currentEvent.allDay,
                 backgroundColor: color,
                 borderColor: color,
-                extendedProps: { category: selectedCategory, rawTitle: currentEvent.title, isAllDayReal: currentEvent.allDay }
+                textColor: '#ffffff',
+                extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
               });
 
               if (activeCategoryFilter === 'Alle' || activeCategoryFilter === selectedCategory) {
                 calendar.addEvent({
                   id: newId,
-                  title: displayTitle,
+                  title: cleanTitle,
                   start: currentEvent.start,
                   end: currentEvent.end,
                   allDay: currentEvent.allDay,
                   backgroundColor: color,
                   borderColor: color,
-                  extendedProps: { category: selectedCategory, rawTitle: currentEvent.title, isAllDayReal: currentEvent.allDay }
+                  textColor: '#ffffff',
+                  extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
                 });
               }
             }
