@@ -427,8 +427,9 @@
     <div class="filter-bar">
       <div class="category-chips">
         <div class="chip active" onclick="filterByCategory('Alle', this)">
-          <span class="dot" style="background: linear-gradient(135deg, #3b82f6, #d4af37, #ec4899, #10b981);"></span>Alle
+          <span class="dot" style="background: linear-gradient(135deg, #3b82f6, #d4af37, #ff007f, #10b981);"></span>Alle
         </div>
+        <div class="chip" onclick="filterByCategory('Silke', this)"><span class="dot" style="background:#ff007f;"></span>Silke</div>
         <div class="chip" onclick="filterByCategory('Privat', this)"><span class="dot" style="background:#3b82f6;"></span>Privat</div>
         <div class="chip" onclick="filterByCategory('TV Kapellen', this)"><span class="dot" style="background:#d4af37;"></span>TV Kapellen</div>
         <div class="chip" onclick="filterByCategory('Geburtstage', this)"><span class="dot" style="background:#ec4899;"></span>Geburtstage</div>
@@ -457,6 +458,7 @@
       <div class="form-group">
         <label>Kategorie</label>
         <select id="eventCategorySelect" onchange="onCategoryChange()">
+          <option value="Silke">Silke</option>
           <option value="Privat">Privat</option>
           <option value="TV Kapellen">TV Kapellen</option>
           <option value="Geburtstage">Geburtstage</option>
@@ -503,6 +505,7 @@
       <div class="form-group">
         <label>Ziel-Kategorie</label>
         <select id="importCategorySelect">
+          <option value="Silke">Silke</option>
           <option value="Privat">Privat</option>
           <option value="TV Kapellen">TV Kapellen</option>
           <option value="Geburtstage">Geburtstage</option>
@@ -527,6 +530,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const categoryColors = {
+      "Silke": "#ff007f",        // Grelles Pink
       "Privat": "#3b82f6",       // Blau
       "TV Kapellen": "#d4af37",  // Gold/Amber
       "Geburtstage": "#ec4899",  // Pink/Magenta
@@ -700,7 +704,7 @@
       document.getElementById('eventTitleInput').value = '';
       document.getElementById('eventRecurrenceSelect').value = 'none';
       
-      const defaultCategory = activeCategoryFilter === 'Alle' ? 'Privat' : activeCategoryFilter;
+      const defaultCategory = activeCategoryFilter === 'Alle' ? 'Silke' : activeCategoryFilter;
       document.getElementById('eventCategorySelect').value = defaultCategory;
       document.getElementById('deleteBtn').style.display = 'none';
 
@@ -735,9 +739,8 @@
       document.getElementById('modalTitle').innerText = 'Termin bearbeiten';
       document.getElementById('eventId').value = event.id;
       document.getElementById('eventTitleInput').value = event.title;
-      document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Privat';
+      document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Silke';
       
-      // Wiederholung auslesen
       let recVal = 'none';
       if (event.rrule) {
         if (event.rrule.includes('FREQ=WEEKLY')) recVal = 'weekly';
