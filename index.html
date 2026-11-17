@@ -273,6 +273,8 @@
       padding: 4px 8px !important;
       border-radius: 6px !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      /* Erzwingt, dass die Event-Hintergrundfarbe aus den inline-Styles korrekt greift */
+      background-color: var(--fc-event-bg-color) !important;
     }
 
     /* Modal / Popup Design */
@@ -565,7 +567,6 @@
       } else {
         allEventsData = dbEvents.map(ev => {
           let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
-          // Nutze die in DB gespeicherte Farbe, falls vorhanden, sonst Fallback auf Kategorie-Farbe
           let col = ev.background_color || categoryColors[cat] || '#3b82f6';
           let isAllDay = ev.all_day !== undefined ? ev.all_day : false;
           let rawCleanTitle = cleanEventTitle(ev.title);
@@ -579,6 +580,8 @@
             backgroundColor: col,
             borderColor: col,
             textColor: '#ffffff',
+            // Damit das CSS die Farbe zuverlässig zieht:
+            classNames: ['cat-event'],
             extendedProps: { 
               category: cat,
               rawTitle: rawCleanTitle,
@@ -841,6 +844,7 @@
             start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
             textColor: '#ffffff',
+            classNames: ['cat-event'],
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
             rrule: rruleStr
           };
@@ -870,6 +874,7 @@
           backgroundColor: color,
           borderColor: color,
           textColor: '#ffffff',
+          classNames: ['cat-event'],
           extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
           rrule: rruleStr
         });
@@ -884,6 +889,7 @@
             backgroundColor: color,
             borderColor: color,
             textColor: '#ffffff',
+            classNames: ['cat-event'],
             extendedProps: { category, rawTitle, isAllDayReal: isAllDay }
           };
           if (rruleStr) evPayload.rrule = rruleStr;
@@ -991,6 +997,7 @@
                 backgroundColor: color,
                 borderColor: color,
                 textColor: '#ffffff',
+                classNames: ['cat-event'],
                 extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
               });
 
@@ -1004,6 +1011,7 @@
                   backgroundColor: color,
                   borderColor: color,
                   textColor: '#ffffff',
+                  classNames: ['cat-event'],
                   extendedProps: { category: selectedCategory, rawTitle: cleanTitle, isAllDayReal: currentEvent.allDay }
                 });
               }
