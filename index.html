@@ -545,13 +545,12 @@
     let allEventsData = [];
     let activeCategoryFilter = 'Alle';
 
-    // Hilfsfunktion: Formatierte Anzeige des Titels mit Uhrzeit (falls nicht ganztägig)
+    // Zeigt nur die Anfangszeit an (z.B. "10:30 - Titel")
     function formatEventTitle(title, start, allDay) {
       if (allDay || !start || !start.includes('T')) {
         return title;
       }
-      let timePart = start.split('T')[1].substring(0, 5); // z.B. "14:00"
-      // Falls im Titel schon eine Uhrzeit steht, nicht doppelt hinzufügen
+      let timePart = start.split('T')[1].substring(0, 5); // z.B. "10:30"
       if (title.includes(timePart) || title.match(/^\d{2}:\d{2}/)) {
         return title;
       }
@@ -569,7 +568,7 @@
         allEventsData = dbEvents.map(ev => {
           let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
           let col = categoryColors[cat];
-          let isAllDay = ev.all_day !== undefined ? ev.all_day : true;
+          let isAllDay = ev.all_day !== undefined ? ev.all_day : false;
           
           let displayTitle = formatEventTitle(ev.title, ev.start, isAllDay);
 
@@ -578,12 +577,14 @@
             title: displayTitle,
             start: ev.start,
             end: ev.end,
-            allDay: true, // Balken-Optik beibehalten
+            allDay: isAllDay,
             backgroundColor: col,
             borderColor: col,
+            textColor: '#ffffff',
             extendedProps: { 
               category: cat,
-              rawTitle: ev.title // Originalen Titel für den Bearbeiten-Dialog speichern
+              rawTitle: ev.title,
+              isAllDayReal: isAllDay
             }
           };
 
@@ -596,7 +597,7 @@
 
       calendar = new FullCalendar.Calendar(calendarEl('calendar'), {
         initialView: 'dayGridMonth',
-        firstDay: 1, // Woche beginnt am Montag
+        firstDay: 1,
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
@@ -607,7 +608,7 @@
         selectable: true,
         events: allEventsData,
         select: function(info) {
-          openNewEventModal(info.startStr, info.endStr, info.allDay);
+          openNewEventModal(info.startStr, info.endStr, false);
         },
         eventClick: function(info) {
           openEditEventModal(info.event);
@@ -625,7 +626,6 @@
       highlightDaysWithEvents();
     });
 
-    // Kategorie-Filter Funktion
     function filterByCategory(category, chipElement) {
       activeCategoryFilter = category;
 
@@ -643,12 +643,10 @@
       highlightDaysWithEvents();
     }
 
-    // Zum heutigen Tag springen
     function jumpToToday() {
       calendar.today();
     }
 
-    // Funktion zum dezenten Markieren von Tagen mit Terminen
     function highlightDaysWithEvents() {
       document.querySelectorAll('.fc-daygrid-day').forEach(el => {
         el.classList.remove('fc-day-has-events');
@@ -696,8 +694,8 @@
         startInput.value = currentStartDate;
         endInput.value = currentEndDate;
       } else {
-        startInput.value = currentStartDate + 'T07:00';
-        endInput.value = currentEndDate + 'T13:00';
+        startInput.value = currentStartDate + 'T10:00';
+        endInput.value = currentEndDate + 'T10:00';
       }
     }
 
@@ -727,27 +725,25 @@
       document.getElementById('eventCategorySelect').value = defaultCategory;
       document.getElementById('deleteBtn').style.display = 'none';
 
-      document.getElementById('allDayCheckbox').checked = isAllDay;
+      // Haken IMMER standardmäßig AUS beim Erstellen
+      document.getElementById('allDayCheckbox').checked = false;
       
       const startInput = document.getElementById('eventStartInput');
       const endInput = document.getElementById('eventEndInput');
       
-      startInput.type = isAllDay ? 'date' : 'datetime-local';
-      endInput.type = isAllDay ? 'date' : 'datetime-local';
+      startInput.type = 'datetime-local';
+      endInput.type = 'datetime-local';
 
       const now = new Date();
-      if (isAllDay) {
-        startInput.value = start ? start.substring(0, 10) : now.toISOString().substring(0, 10);
-        endInput.value = end ? end.substring(0, 10) : now.toISOString().substring(0, 10);
+      let baseDateStr = start ? start.substring(0, 10) : now.toISOString().substring(0, 10);
+
+      if (defaultCategory === 'Eisen Krämer') {
+        startInput.value = baseDateStr + 'T07:00';
+        endInput.value = baseDateStr + 'T13:00';
       } else {
-        if (defaultCategory === 'Eisen Krämer') {
-          let dateStr = start ? start.substring(0, 10) : now.toISOString().substring(0, 10);
-          startInput.value = dateStr + 'T07:00';
-          endInput.value = dateStr + 'T13:00';
-        } else {
-          startInput.value = start ? start.substring(0, 16) : formatLocalDateTime(now);
-          endInput.value = end ? end.substring(0, 16) : formatLocalDateTime(new Date(now.getTime() + 60*60*1000));
-        }
+        let timeStr = start && start.includes('T') ? start.substring(11, 16) : '10:00';
+        startInput.value = baseDateStr + 'T' + timeStr;
+        endInput.value = baseDateStr + 'T' + timeStr;
       }
 
       document.getElementById('eventModal').style.display = 'flex';
@@ -757,7 +753,6 @@
       currentEditingEvent = event;
       document.getElementById('modalTitle').innerText = 'Termin bearbeiten';
       document.getElementById('eventId').value = event.id;
-      // Den ursprünglichen Titel ohne prefix anzeigen
       document.getElementById('eventTitleInput').value = event.extendedProps.rawTitle || event.title;
       document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Silke';
       
@@ -770,23 +765,17 @@
       document.getElementById('eventRecurrenceSelect').value = recVal;
       document.getElementById('deleteBtn').style.display = 'inline-block';
 
-      const isAllDay = event.allDay;
-      document.getElementById('allDayCheckbox').checked = isAllDay;
+      // Haken beim Bearbeiten IMMER standardmäßig AUS (du entscheidest bewusst)
+      document.getElementById('allDayCheckbox').checked = false;
 
       const startInput = document.getElementById('eventStartInput');
       const endInput = document.getElementById('eventEndInput');
       
-      startInput.type = isAllDay ? 'date' : 'datetime-local';
-      endInput.type = isAllDay ? 'date' : 'datetime-local';
+      startInput.type = 'datetime-local';
+      endInput.type = 'datetime-local';
 
-      if (isAllDay) {
-        startInput.value = event.startStr ? event.startStr.substring(0, 10) : '';
-        let endDate = event.end ? new Date(event.end.getTime() - 86400000) : new Date(event.start);
-        endInput.value = endDate.toISOString().substring(0, 10);
-      } else {
-        startInput.value = event.start ? event.start.toISOString().substring(0, 16) : '';
-        endInput.value = event.end ? event.end.toISOString().substring(0, 16) : (event.start ? event.start.toISOString().substring(0, 16) : '');
-      }
+      startInput.value = event.start ? event.start.toISOString().substring(0, 16) : '';
+      endInput.value = event.end ? event.end.toISOString().substring(0, 16) : (event.start ? event.start.toISOString().substring(0, 16) : '');
 
       document.getElementById('eventModal').style.display = 'flex';
     }
@@ -834,25 +823,26 @@
         currentEditingEvent.setProp('title', displayTitle);
         currentEditingEvent.setStart(start);
         currentEditingEvent.setEnd(end);
-        currentEditingEvent.setAllDay(true);
+        currentEditingEvent.setAllDay(isAllDay);
         currentEditingEvent.setProp('backgroundColor', color);
         currentEditingEvent.setProp('borderColor', color);
         currentEditingEvent.setExtendedProp('category', category);
         currentEditingEvent.setExtendedProp('rawTitle', rawTitle);
+        currentEditingEvent.setExtendedProp('isAllDayReal', isAllDay);
 
         const idx = allEventsData.findIndex(e => e.id === currentEditingEvent.id);
         if (idx !== -1) {
           allEventsData[idx] = {
             id: currentEditingEvent.id,
             title: displayTitle,
-            start, end, allDay: true,
+            start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
-            extendedProps: { category, rawTitle },
+            extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
             rrule: rruleStr
           };
         }
 
-        await updateEventInSupabase(currentEditingEvent, rawTitle, rruleStr);
+        await updateEventInSupabase(currentEditingEvent, rawTitle, rruleStr, isAllDay);
       } else {
         const newId = '_' + Math.random().toString(36).substr(2, 9);
         const newEventData = {
@@ -872,10 +862,10 @@
           title: displayTitle,
           start: start,
           end: end,
-          allDay: true,
+          allDay: isAllDay,
           backgroundColor: color,
           borderColor: color,
-          extendedProps: { category, rawTitle },
+          extendedProps: { category, rawTitle, isAllDayReal: isAllDay },
           rrule: rruleStr
         });
 
@@ -885,10 +875,10 @@
             title: displayTitle,
             start: start,
             end: end,
-            allDay: true,
+            allDay: isAllDay,
             backgroundColor: color,
             borderColor: color,
-            extendedProps: { category, rawTitle }
+            extendedProps: { category, rawTitle, isAllDayReal: isAllDay }
           };
           if (rruleStr) evPayload.rrule = rruleStr;
 
@@ -902,7 +892,7 @@
       closeModal();
     }
 
-    async function updateEventInSupabase(event, rawTitle, rruleStr) {
+    async function updateEventInSupabase(event, rawTitle, rruleStr, isAllDay) {
       const category = event.extendedProps.category || 'Privat';
       const color = categoryColors[category] || '#3b82f6';
       
@@ -910,7 +900,7 @@
         title: rawTitle,
         start: event.startStr,
         end: event.endStr || event.startStr,
-        all_day: event.allDay,
+        all_day: isAllDay,
         category: category,
         background_color: color,
         border_color: color,
@@ -928,7 +918,6 @@
       }
     }
 
-    // iCal Datei Import vorbereiten
     function prepareIcalImport(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -942,7 +931,6 @@
       reader.readAsText(file);
     }
 
-    // iCal Auswertung mit Unterstützung für ganztägige Termine und Filter ab Nov 2026
     async function executeIcalImport() {
       const selectedCategory = document.getElementById('importCategorySelect').value;
       if (!pendingIcalText) return;
@@ -994,10 +982,10 @@
                 title: displayTitle,
                 start: currentEvent.start,
                 end: currentEvent.end,
-                allDay: true,
+                allDay: currentEvent.allDay,
                 backgroundColor: color,
                 borderColor: color,
-                extendedProps: { category: selectedCategory, rawTitle: currentEvent.title }
+                extendedProps: { category: selectedCategory, rawTitle: currentEvent.title, isAllDayReal: currentEvent.allDay }
               });
 
               if (activeCategoryFilter === 'Alle' || activeCategoryFilter === selectedCategory) {
@@ -1006,10 +994,10 @@
                   title: displayTitle,
                   start: currentEvent.start,
                   end: currentEvent.end,
-                  allDay: true,
+                  allDay: currentEvent.allDay,
                   backgroundColor: color,
                   borderColor: color,
-                  extendedProps: { category: selectedCategory, rawTitle: currentEvent.title }
+                  extendedProps: { category: selectedCategory, rawTitle: currentEvent.title, isAllDayReal: currentEvent.allDay }
                 });
               }
             }
