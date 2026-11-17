@@ -301,6 +301,8 @@
       width: 100%;
       max-width: 480px;
       box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+      max-height: 90vh;
+      overflow-y: auto;
     }
 
     .modal-content h3 {
@@ -464,6 +466,15 @@
         </select>
       </div>
       <div class="form-group">
+        <label>Wiederholung</label>
+        <select id="eventRecurrenceSelect">
+          <option value="none">Keine Wiederholung</option>
+          <option value="weekly">Wöchentlich</option>
+          <option value="monthly">Monatlich</option>
+          <option value="yearly">Jährlich</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="checkbox-group">
           <input type="checkbox" id="allDayCheckbox" onchange="toggleAllDay()"> Ganztägiger Termin
         </label>
@@ -541,7 +552,8 @@
         allEventsData = dbEvents.map(ev => {
           let cat = ev.category && categoryColors[ev.category] ? ev.category : 'Privat';
           let col = categoryColors[cat];
-          return {
+          
+          let eventObj = {
             id: ev.id,
             title: ev.title,
             start: ev.start,
@@ -551,6 +563,11 @@
             borderColor: col,
             extendedProps: { category: cat }
           };
+
+          if (ev.rrule) {
+            eventObj.rrule = ev.rrule;
+          }
+          return eventObj;
         });
       }
 
@@ -661,7 +678,6 @@
       }
     }
 
-    // Automatische Zeitsetzung bei Auswahl von "Eisen Krämer"
     function onCategoryChange() {
       const category = document.getElementById('eventCategorySelect').value;
       const isAllDay = document.getElementById('allDayCheckbox').checked;
@@ -682,6 +698,7 @@
       document.getElementById('modalTitle').innerText = 'Termin hinzufügen';
       document.getElementById('eventId').value = '';
       document.getElementById('eventTitleInput').value = '';
+      document.getElementById('eventRecurrenceSelect').value = 'none';
       
       const defaultCategory = activeCategoryFilter === 'Alle' ? 'Privat' : activeCategoryFilter;
       document.getElementById('eventCategorySelect').value = defaultCategory;
@@ -719,6 +736,15 @@
       document.getElementById('eventId').value = event.id;
       document.getElementById('eventTitleInput').value = event.title;
       document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Privat';
+      
+      // Wiederholung auslesen
+      let recVal = 'none';
+      if (event.rrule) {
+        if (event.rrule.includes('FREQ=WEEKLY')) recVal = 'weekly';
+        else if (event.rrule.includes('FREQ=MONTHLY')) recVal = 'monthly';
+        else if (event.rrule.includes('FREQ=YEARLY')) recVal = 'yearly';
+      }
+      document.getElementById('eventRecurrenceSelect').value = recVal;
       document.getElementById('deleteBtn').style.display = 'inline-block';
 
       const isAllDay = event.allDay;
@@ -754,6 +780,7 @@
     async function saveEvent() {
       const title = document.getElementById('eventTitleInput').value;
       const category = document.getElementById('eventCategorySelect').value;
+      const recurrence = document.getElementById('eventRecurrenceSelect').value;
       const isAllDay = document.getElementById('allDayCheckbox').checked;
       let start = document.getElementById('eventStartInput').value;
       let end = document.getElementById('eventEndInput').value;
@@ -772,6 +799,11 @@
       }
 
       const color = categoryColors[category] || '#3b82f6';
+      
+      let rruleStr = null;
+      if (recurrence === 'weekly') rruleStr = 'FREQ=WEEKLY';
+      else if (recurrence === 'monthly') rruleStr = 'FREQ=MONTHLY';
+      else if (recurrence === 'yearly') rruleStr = 'FREQ=YEARLY';
 
       if (currentEditingEvent) {
         currentEditingEvent.setProp('title', title);
@@ -788,11 +820,12 @@
             id: currentEditingEvent.id,
             title, start, end, allDay: isAllDay,
             backgroundColor: color, borderColor: color,
-            extendedProps: { category }
+            extendedProps: { category },
+            rrule: rruleStr
           };
         }
 
-        await updateEventInSupabase(currentEditingEvent);
+        await updateEventInSupabase(currentEditingEvent, rruleStr);
       } else {
         const newEventData = {
           id: '_' + Math.random().toString(36).substr(2, 9),
@@ -802,7 +835,8 @@
           all_day: isAllDay,
           category: category,
           background_color: color,
-          border_color: color
+          border_color: color,
+          rrule: rruleStr
         };
 
         allEventsData.push({
@@ -813,11 +847,12 @@
           allDay: newEventData.all_day,
           backgroundColor: newEventData.background_color,
           borderColor: newEventData.border_color,
-          extendedProps: { category: newEventData.category }
+          extendedProps: { category: newEventData.category },
+          rrule: rruleStr
         });
 
         if (activeCategoryFilter === 'Alle' || activeCategoryFilter === category) {
-          calendar.addEvent({
+          let evPayload = {
             id: newEventData.id,
             title: newEventData.title,
             start: newEventData.start,
@@ -826,7 +861,10 @@
             backgroundColor: newEventData.background_color,
             borderColor: newEventData.border_color,
             extendedProps: { category: newEventData.category }
-          });
+          };
+          if (rruleStr) evPayload.rrule = rruleStr;
+
+          calendar.addEvent(evPayload);
         }
 
         await supabaseClient.from('calendar_events').insert([newEventData]);
@@ -836,7 +874,7 @@
       closeModal();
     }
 
-    async function updateEventInSupabase(event) {
+    async function updateEventInSupabase(event, rruleStr) {
       const category = event.extendedProps.category || 'Privat';
       const color = categoryColors[category] || '#3b82f6';
       
@@ -847,7 +885,8 @@
         all_day: event.allDay,
         category: category,
         background_color: color,
-        border_color: color
+        border_color: color,
+        rrule: rruleStr || null
       }).eq('id', event.id);
     }
 
