@@ -126,7 +126,7 @@
       border-color: var(--accent);
     }
 
-    /* Kategorien & Schnellfilter Leiste */
+    /* Kategorien Filterleiste & Heute Button */
     .filter-bar {
       display: flex;
       gap: 10px;
@@ -582,11 +582,9 @@
     function filterByCategory(category, chipElement) {
       activeCategoryFilter = category;
 
-      // Aktive Klasse bei Chips umschalten
       document.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
       chipElement.classList.add('active');
 
-      // Events filtern
       if (category === 'Alle') {
         calendar.removeAllEvents();
         calendar.addEventSource(allEventsData);
@@ -698,6 +696,7 @@
       const startInput = document.getElementById('eventStartInput');
       const endInput = document.getElementById('eventEndInput');
       
+      // Korrekte Typ-Zuweisung, damit das Datums-/Uhrzeitfenster des Browsers öffnet
       startInput.type = isAllDay ? 'date' : 'datetime-local';
       endInput.type = isAllDay ? 'date' : 'datetime-local';
 
@@ -753,7 +752,6 @@
         currentEditingEvent.setProp('borderColor', color);
         currentEditingEvent.setExtendedProp('category', category);
 
-        // Auch im zentralen Array aktualisieren
         const idx = allEventsData.findIndex(e => e.id === currentEditingEvent.id);
         if (idx !== -1) {
           allEventsData[idx] = {
