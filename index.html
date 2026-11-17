@@ -550,6 +550,7 @@
 
       calendar = new FullCalendar.Calendar(calendarEl('calendar'), {
         initialView: 'dayGridMonth',
+        firstDay: 1, // Woche beginnt am Montag (1)
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
@@ -696,7 +697,6 @@
       const startInput = document.getElementById('eventStartInput');
       const endInput = document.getElementById('eventEndInput');
       
-      // Korrekte Typ-Zuweisung, damit das Datums-/Uhrzeitfenster des Browsers öffnet
       startInput.type = isAllDay ? 'date' : 'datetime-local';
       endInput.type = isAllDay ? 'date' : 'datetime-local';
 
