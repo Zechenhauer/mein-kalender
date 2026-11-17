@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jürgen Schützendorf — Smart Calendar</title>
+  <!-- FullCalendar CSS -->
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: #131c2e;
+      --bg-hover: #1e293b;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #d4af37; /* Edles Gold/Amber */
+      --accent-glow: rgba(212, 175, 55, 0.15);
+      --danger: #ef4444;
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 1300px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header Bereich */
+    header {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 24px 32px;
+      border-radius: var(--radius);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .header-title h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-main);
+    }
+
+    .header-title p {
+      margin: 4px 0 0 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .header-title span {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #d4af37 0%, #aa8c2c 100%);
+      color: #0b0f19;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px var(--accent-glow);
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.1);
+    }
+
+    .btn-secondary-action {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary-action:hover {
+      border-color: var(--accent);
+    }
+
+    /* Karten-Container */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 32px;
+      border-radius: var(--radius);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Modernisiertes FullCalendar Design */
+    .fc {
+      --fc-border-color: var(--border-color);
+      --fc-page-bg-color: transparent;
+      --fc-neutral-bg-color: rgba(255, 255, 255, 0.02);
+      --fc-list-event-hover-bg-color: var(--bg-hover);
+      --fc-today-bg-color: var(--accent-glow);
+      font-family: inherit;
+    }
+
+    .fc-toolbar-title {
+      color: var(--text-main);
+      font-size: 1.3rem !important;
+      font-weight: 600;
+    }
+
+    .fc-button-primary {
+      background-color: var(--bg-hover) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+      font-weight: 500 !important;
+      padding: 10px 16px !important;
+      border-radius: 8px !important;
+      transition: all 0.2s;
+    }
+
+    .fc-button-primary:hover {
+      background-color: var(--accent) !important;
+      border-color: var(--accent) !important;
+      color: #0b0f19 !important;
+    }
+
+    .fc-button-active {
+      background-color: var(--accent) !important;
+      color: #0b0f19 !important;
+      border-color: var(--accent) !important;
+    }
+
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+      color: var(--text-muted);
+      font-weight: 500;
+      text-decoration: none;
+    }
+
+    .fc-daygrid-day-number {
+      padding: 10px !important;
+    }
+
+    .fc-day-today .fc-daygrid-day-number {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .fc-event {
+      border: none !important;
+      font-weight: 600 !important;
+      padding: 4px 8px !important;
+      border-radius: 6px !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Tabellen-Ansicht für alle Termine */
+    .table-section-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-main);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    tr:hover td {
+      background: var(--bg-hover);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #0b0f19;
+    }
+
+    .btn-table-delete {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-table-delete:hover {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Modal / Popup Design */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(11, 15, 25, 0.8);
+      backdrop-filter: blur(8px);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 32px;
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+    }
+
+    .modal-content h3 {
+      margin: 0 0 20px 0;
+      color: var(--text-main);
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      color: var(--text-main);
+      background: var(--bg-hover);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-danger:hover {
+      background: var(--danger);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <h1>Smart Calendar</h1>
+        <p>Persönlicher Kalender von <span>Jürgen Schützendorf</span></p>
+      </div>
+      <div class="header-actions">
+        <input type="file" id="icalFileInput" accept=".ics" style="display:none" onchange="prepareIcalImport(event)">
+        <button class="btn-secondary-action" onclick="document.getElementById('icalFileInput').click()">
+          📥 iCal importieren
+        </button>
+        <button class="btn-primary" onclick="openNewEventModal()">
+          <span>+</span> Neuer Termin
+        </button>
+      </div>
+    </header>
+
+    <!-- Kalender Karte -->
+    <div class="card">
+      <div id='calendar'></div>
+    </div>
+
+    <!-- Tabellen Karte -->
+    <div class="card">
+      <div class="table-section-title">
+        <span>Alle eingetragenen Termine (Supabase Datenbank)</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum & Uhrzeit</th>
+              <th>Titel</th>
+              <th>Kategorie</th>
+              <th style="text-align: right;">Aktion</th>
+            </tr>
+          </thead>
+          <tbody id="eventsTableBody">
+            <!-- Wird dynamisch gefüllt -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Termin Modal -->
+  <div id="eventModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalTitle">Termin hinzufügen</h3>
+      <input type="hidden" id="eventId">
+      <div class="form-group">
+        <label>Titel</label>
+        <input type="text" id="eventTitleInput" placeholder="z.B. Ligaspiel / Treffen">
+      </div>
+      <div class="form-group">
+        <label>Kategorie</label>
+        <select id="eventCategorySelect">
+          <option value="Privat">Privat</option>
+          <option value="TV Kapellen">TV Kapellen</option>
+          <option value="Geburtstage">Geburtstage</option>
+          <option value="Doppelkopf">Doppelkopf</option>
+          <option value="Eisen Krämer">Eisen Krämer</option>
+          <option value="Fussball">Fussball</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Startdatum & Uhrzeit</label>
+        <input type="datetime-local" id="eventStartInput">
+      </div>
+      <div class="form-group">
+        <label>Enddatum & Uhrzeit</label>
+        <input type="datetime-local" id="eventEndInput">
+      </div>
+      <div class="modal-actions">
+        <button id="deleteBtn" class="btn-danger" style="display:none;" onclick="deleteEventModal()">Löschen</button>
+        <button class="btn-secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn-primary" onclick="saveEvent()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- iCal Import Kategorie-Auswahl Modal -->
+  <div id="importModal" class="modal">
+    <div class="modal-content">
+      <h3>iCal-Import: Kategorie wählen</h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0;">Wähle aus, welcher Kategorie alle Termine aus dieser iCal-Datei zugeordnet werden sollen:</p>
+      <div class="form-group">
+        <label>Ziel-Kategorie</label>
+        <select id="importCategorySelect">
+          <option value="Privat">Privat</option>
+          <option value="TV Kapellen">TV Kapellen</option>
+          <option value="Geburtstage">Geburtstage</option>
+          <option value="Doppelkopf">Doppelkopf</option>
+          <option value="Eisen Krämer">Eisen Krämer</option>
+          <option value="Fussball">Fussball</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeImportModal()">Abbrechen</button>
+        <button class="btn-primary" onclick="executeIcalImport()">Importieren</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FullCalendar & Supabase Logik -->
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+  <script>
+    // --- SUPABASE CONFIGURATION ---
+    const SUPABASE_URL = 'https://lhusylpjnujlqomougmg.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_yXEueWILvAq-Vm2VfTuYyg_BIQeE1KK';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const categoryColors = {
+      "Privat": "#3b82f6",       // Blau
+      "TV Kapellen": "#d4af37",  // Gold/Amber
+      "Geburtstage": "#ec4899",  // Pink/Magenta
+      "Doppelkopf": "#10b981",   // Grün
+      "Eisen Krämer": "#f97316", // Orange
+      "Fussball": "#06b6d4"      // Cyan
+    };
+
+    let calendar;
+    let currentEditingEvent = null;
+    let pendingIcalText = '';
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      var calendarEl = id => document.getElementById(id);
+
+      // Daten direkt aus Supabase laden
+      const { data: dbEvents, error } = await supabaseClient.from('calendar_events').select('*');
+      
+      let initialEvents = [];
+      if (error) {
+        console.error('Fehler beim Laden aus Supabase:', error.message);
+      } else {
+        initialEvents = dbEvents.map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          start: ev.start,
+          end: ev.end,
+          backgroundColor: ev.background_color,
+          borderColor: ev.border_color,
+          extendedProps: { category: ev.category }
+        }));
+      }
+
+      calendar = new FullCalendar.Calendar(calendarEl('calendar'), {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,listWeek'
+        },
+        locale: 'de',
+        editable: true,
+        selectable: true,
+        events: initialEvents,
+        select: function(info) {
+          openNewEventModal(info.startStr, info.endStr);
+        },
+        eventClick: function(info) {
+          openEditEventModal(info.event);
+        },
+        eventChange: async function(info) {
+          await updateEventInSupabase(info.event);
+          updateEventsTable();
+        },
+        datesSet: function() {
+          updateEventsTable();
+        }
+      });
+
+      calendar.render();
+      updateEventsTable();
+    });
+
+    function openNewEventModal(start = '', end = '') {
+      currentEditingEvent = null;
+      document.getElementById('modalTitle').innerText = 'Termin hinzufügen';
+      document.getElementById('eventId').value = '';
+      document.getElementById('eventTitleInput').value = '';
+      document.getElementById('eventCategorySelect').value = 'Privat';
+      document.getElementById('deleteBtn').style.display = 'none';
+
+      const now = new Date();
+      document.getElementById('eventStartInput').value = start ? start.substring(0, 16) : formatLocalDateTime(now);
+      document.getElementById('eventEndInput').value = end ? end.substring(0, 16) : formatLocalDateTime(new Date(now.getTime() + 60*60*1000));
+
+      document.getElementById('eventModal').style.display = 'flex';
+    }
+
+    function openEditEventModal(event) {
+      currentEditingEvent = event;
+      document.getElementById('modalTitle').innerText = 'Termin bearbeiten';
+      document.getElementById('eventId').value = event.id;
+      document.getElementById('eventTitleInput').value = event.title;
+      document.getElementById('eventCategorySelect').value = event.extendedProps.category || 'Privat';
+      document.getElementById('deleteBtn').style.display = 'inline-block';
+
+      document.getElementById('eventStartInput').value = event.start ? event.start.toISOString().substring(0, 16) : '';
+      document.getElementById('eventEndInput').value = event.end ? event.end.toISOString().substring(0, 16) : '';
+
+      document.getElementById('eventModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('eventModal').style.display = 'none';
+    }
+
+    function closeImportModal() {
+      document.getElementById('importModal').style.display = 'none';
+      pendingIcalText = '';
+    }
+
+    async function saveEvent() {
+      const title = document.getElementById('eventTitleInput').value;
+      const category = document.getElementById('eventCategorySelect').value;
+      const start = document.getElementById('eventStartInput').value;
+      const end = document.getElementById('eventEndInput').value;
+
+      if (!title) {
+        alert('Bitte gib einen Titel ein.');
+        return;
+      }
+
+      const color = categoryColors[category] || '#3b82f6';
+
+      if (currentEditingEvent) {
+        currentEditingEvent.setProp('title', title);
+        currentEditingEvent.setStart(start);
+        currentEditingEvent.setEnd(end);
+        currentEditingEvent.setProp('backgroundColor', color);
+        currentEditingEvent.setProp('borderColor', color);
+        currentEditingEvent.setExtendedProp('category', category);
+
+        await updateEventInSupabase(currentEditingEvent);
+      } else {
+        const newEventData = {
+          id: '_' + Math.random().toString(36).substr(2, 9),
+          title: title,
+          start: start,
+          end: end,
+          category: category,
+          background_color: color,
+          border_color: color
+        };
+
+        calendar.addEvent({
+          id: newEventData.id,
+          title: newEventData.title,
+          start: newEventData.start,
+          end: newEventData.end,
+          backgroundColor: newEventData.background_color,
+          borderColor: newEventData.border_color,
+          extendedProps: { category: newEventData.category }
+        });
+
+        await supabaseClient.from('calendar_events').insert([newEventData]);
+      }
+
+      updateEventsTable();
+      closeModal();
+    }
+
+    async function updateEventInSupabase(event) {
+      const category = event.extendedProps.category || 'Privat';
+      const color = categoryColors[category] || '#3b82f6';
+      
+      await supabaseClient.from('calendar_events').update({
+        title: event.title,
+        start: event.startStr,
+        end: event.endStr || event.startStr,
+        category: category,
+        background_color: color,
+        border_color: color
+      }).eq('id', event.id);
+    }
+
+    async function deleteEventModal() {
+      if (currentEditingEvent && confirm('Möchtest du diesen Termin wirklich löschen?')) {
+        await supabaseClient.from('calendar_events').delete().eq('id', currentEditingEvent.id);
+        currentEditingEvent.remove();
+        updateEventsTable();
+        closeModal();
+      }
+    }
+
+    async function deleteEventById(eventId) {
+      const event = calendar.getEventById(eventId);
+      if (event && confirm('Möchtest du diesen Termin wirklich löschen?')) {
+        await supabaseClient.from('calendar_events').delete().eq('id', eventId);
+        event.remove();
+        updateEventsTable();
+      }
+    }
+
+    // iCal Import Schritt 1
+    function prepareIcalImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        pendingIcalText = e.target.result;
+        document.getElementById('importModal').style.display = 'flex';
+        event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    // iCal Import Schritt 2
+    async function executeIcalImport() {
+      const selectedCategory = document.getElementById('importCategorySelect').value;
+      if (!pendingIcalText) return;
+
+      const lines = pendingIcalText.split(/\r\n|\n|\r/);
+      let importedEvents = [];
+      let currentEvent = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+
+        while (i + 1 < lines.length && (lines[i + 1].startsWith(' ') || lines[i + 1].startsWith('\t'))) {
+          i++;
+          line += lines[i].trimStart();
+        }
+
+        if (line === 'BEGIN:VEVENT') {
+          currentEvent = { title: 'Importierter Termin', start: '', end: '' };
+        } else if (line === 'END:VEVENT' && currentEvent) {
+          if (currentEvent.start) {
+            if (!currentEvent.end) {
+              let startDate = new Date(currentEvent.start);
+              startDate.setHours(startDate.getHours() + 1);
+              currentEvent.end = startDate.toISOString().substring(0, 16);
+            }
+
+            const color = categoryColors[selectedCategory] || '#3b82f6';
+            const eventObj = {
+              id: '_' + Math.random().toString(36).substr(2, 9),
+              title: currentEvent.title,
+              start: currentEvent.start,
+              end: currentEvent.end,
+              category: selectedCategory,
+              background_color: color,
+              border_color: color
+            };
+
+            importedEvents.push(eventObj);
+
+            calendar.addEvent({
+              id: eventObj.id,
+              title: eventObj.title,
+              start: eventObj.start,
+              end: eventObj.end,
+              backgroundColor: eventObj.background_color,
+              borderColor: eventObj.border_color,
+              extendedProps: { category: eventObj.category }
+            });
+          }
+          currentEvent = null;
+        } else if (currentEvent) {
+          if (line.startsWith('SUMMARY:')) {
+            currentEvent.title = line.substring(8).trim();
+          } else if (line.startsWith('DTSTART')) {
+            currentEvent.start = parseIcalDate(line);
+          } else if (line.startsWith('DTEND')) {
+            currentEvent.end = parseIcalDate(line);
+          }
+        }
+      }
+
+      if (importedEvents.length > 0) {
+        await supabaseClient.from('calendar_events').insert(importedEvents);
+        updateEventsTable();
+        alert(`Erfolgreich ${importedEvents.length} Termine als "${selectedCategory}" in Supabase gespeichert!`);
+      } else {
+        alert('Es konnten keine gültigen Termine in der iCal-Datei gefunden werden.');
+      }
+
+      closeImportModal();
+    }
+
+    function parseIcalDate(line) {
+      const parts = line.split(':');
+      if (parts.length < 2) return '';
+      let val = parts[1].trim();
+
+      if (val.length === 8) {
+        let year = val.substring(0, 4);
+        let month = val.substring(4, 6);
+        let day = val.substring(6, 8);
+        return `${year}-${month}-${day}T00:00:00`;
+      } else if (val.length >= 15) {
+        let year = val.substring(0, 4);
+        let month = val.substring(4, 6);
+        let day = val.substring(6, 8);
+        let hour = val.substring(9, 11);
+        let minute = val.substring(11, 13);
+        return `${year}-${month}-${day}T${hour}:${minute}`;
+      }
+      return '';
+    }
+
+    function updateEventsTable() {
+      const tbody = document.getElementById('eventsTableBody');
+      tbody.innerHTML = '';
+
+      const events = calendar.getEvents().sort((a, b) => a.start - b.start);
+
+      if (events.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">Keine Termine vorhanden.</td></tr>`;
+        return;
+      }
+
+      events.forEach(ev => {
+        const category = ev.extendedProps.category || 'Privat';
+        const color = categoryColors[category] || '#3b82f6';
+        
+        const startDateStr = ev.start ? ev.start.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: ev.allDay ? undefined : 'short' }) : 'Unbekannt';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${startDateStr}</td>
+          <td style="font-weight: 600;">${ev.title}</td>
+          <td><span class="badge" style="background-color: ${color};">${category}</span></td>
+          <td style="text-align: right;"><button class="btn-table-delete" onclick="deleteEventById('${ev.id}')">Löschen</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function formatLocalDateTime(date) {
+      const offset = date.getTimezoneOffset();
+      const localDate = new Date(date.getTime() - (offset*60*1000));
+      return localDate.toISOString().substring(0, 16);
+    }
+  </script>
+
+</body>
+</html>
